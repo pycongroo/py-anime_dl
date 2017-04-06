@@ -202,6 +202,111 @@ class AnimeytScraper(Scraper):
         url_real = self.re_link_js.match(text_url).groups()[0]
         return url_real
 
+class AnimeflvScraper(Scraper):
+    base_link = 'http://www.animeflv.me/'
+    scraper_name = 'animeflv-me'
+    re_link_url_js = re.compile('https://\S*')
+
+    ##metodos de busqueda
+    def url_busqueda(self, criterio):
+        busqueda_prev = '%sBuscar' % self.base_link
+        return '%s?s=%s' % (busqueda_prev, criterio.replace(' ', '+'))
+
+    def get_results_from_url(self, url):
+        sreq = self.sesion.request_get(url)
+        if (sreq.url==url):
+            l_d_anime = self.get_animes_from_html(sreq.text)
+        else:
+            b_text = Bs(sreq.text, 'lxml')
+            #if (b_text.findAll('tr')[0].find('th').getText()==' Anime'):
+            d_anime = {}
+            d_anime.update({'title':b_text.find('a',{'class':'bigChar'}).getText().replace('  ','').replace('\n','')})
+            d_anime.update({'link': sreq.url})
+            l_d_anime=[d_anime]
+        return l_d_anime
+
+    def get_animes_from_html(self, h_text):
+        b_text = Bs(h_text, 'lxml')
+        l_anime_divs = b_text.findAll('tr')[2:]
+        l_d_animes = map(self.get_anime_from_div, l_anime_divs)
+        return l_d_animes
+
+    def get_anime_from_div(self, anime_div):
+        d_anime = {}
+        anime_upd = anime_div.find('td')
+        d_anime.update({'title': self.get_title(anime_upd)})
+        #d_anime.update({'poster': get_poster_link(anime_upd)})
+        #d_anime.update({'synopsis': get_synopsis(anime_upd)})
+        d_anime.update({'link': self.get_link(anime_upd)})
+        #d_anime.update({'date': get_date(anime_upd)})
+        #d_anime.update({'status': self.get_status(anime_upd)})
+        #d_anime.update({'genres': get_genres(anime_upd)})
+        #d_anime.update({'tags': get_tags(anime_upd)})
+        return d_anime
+
+    def get_title(self, anime_div):
+        anime_title = anime_div.find('a').getText().split('\r')[0].replace('\n', ' ')
+        return anime_title
+
+    def get_link(self, anime_div):
+        anime_link = anime_div.find('a').get('href')
+        return anime_link
+
+    # scrapping de obtencion de capitulos
+    def get_capitulos_from_url(self, url_serie):
+        creq = self.sesion.request_get(url_serie)
+        c_text = Bs(creq.text, 'lxml')
+        l_chapters = c_text.findAll('tr')[2:]
+        l_d_chapters = map(self.get_chapter_from_div, l_chapters)
+        l_d_chapters.reverse()
+        return l_d_chapters
+
+    def get_chapter_from_div(self, chapter_div):
+        d_chapter = {}
+        chapter_adp=chapter_div.find('td')
+        d_chapter.update({'title': self.get_chapter_title(chapter_adp)})
+        d_chapter.update({'link': self.get_chapter_link(chapter_adp)})
+        return d_chapter
+
+
+    def get_chapter_title(self, chapter_div):
+        chapter_title = chapter_div.find('a').getText().split('\r')[0].replace('\n', ' ').replace('   ','')
+        return chapter_title
+
+
+    def get_chapter_link(self, chapter_div):
+        chapter_link = chapter_div.find('a').get('href')
+        return chapter_link
+
+    #scrapping de obtencion de links de descarga de capitulo
+    def get_download_link_from_url(self, url_capitulo):
+        c_req = self.sesion.request_get(url_capitulo)
+        c_text = Bs(c_req.text, 'lxml')
+        download_url_redir = c_text.find('iframe').get('src')
+        ## ubico enlace generado de descarga
+        download_url = self.get_link_by_link_page(download_url_redir)
+        return download_url
+
+    def get_link_by_link_page(self, dl_link):
+        ##recibe url de player.animeflv
+        b_text = Bs(self.sesion.request_get(dl_link).text, 'lxml')
+        #url_real = b_text.find('video').find('source').get('src')
+        links_str_list=b_text.findAll('script')[7].getText().split('[')[1].split(']')[0].split('"')
+        #es una lista con los enlaces y basura, debe ser filtrado
+        #for i in links_res:
+        #    print i
+        #time.sleep()
+        links_res=filter(self.re_link_url_js.match,links_str_list)
+        #if (res>=len(links_res)):
+        #    clrs.m_aviso('resolucion no encontrada, tomando 480p(1)')
+        #    res=1
+        clrs.m_aviso('tomando resolucion 480p(1)')
+        res=1
+        #return url_real
+        return links_res[res]
 
 def get_animeyt_scrapper():
     return AnimeytScraper(default_download_path)
+
+def get_animeflv_scrapper():
+    return AnimeflvScraper(default_download_path)
