@@ -1,0 +1,4 @@
+requests==2.2.1
+cfscrape==1.7.1
+beautifulsoup4==4.4.1
+lxml==3.3.3
