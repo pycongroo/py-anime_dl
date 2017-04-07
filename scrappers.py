@@ -53,14 +53,14 @@ class Scraper():
         if (desde is None):
             capitulos = capitulos_totales
         else:
-            if (desde >= len(capitulos)):
+            if (desde >= len(capitulos_totales)):
                 clrs.m_aviso("seleccion no disponible")
             capitulos =  capitulos_totales[desde-1:]
         for capitulo in capitulos:
             self.descargar_capitulo(capitulo, serie_path)
 
     def descargar_capitulo(self, capitulo, dir_path):
-        path_capitulo = dir_path + capitulo['title'] + 'mp4'
+        path_capitulo = dir_path + capitulo['title'] + '.mp4'
         if os.path.exists(path_capitulo):
             clrs.m_aviso("Ya existe %s" % path_capitulo)
         else:
@@ -206,6 +206,15 @@ class AnimeflvScraper(Scraper):
     base_link = 'http://www.animeflv.me/'
     scraper_name = 'animeflv-me'
     re_link_url_js = re.compile('https://\S*')
+    res=None
+
+    def __init__(self, base_path, res=None):
+        Scraper.__init__(self, base_path)
+        if res is None:
+            clrs.m_aviso("resolucion no ingresada, tomara 480p")
+            self.res = 1
+        else:
+            self.res = res
 
     ##metodos de busqueda
     def url_busqueda(self, criterio):
@@ -300,13 +309,11 @@ class AnimeflvScraper(Scraper):
         #if (res>=len(links_res)):
         #    clrs.m_aviso('resolucion no encontrada, tomando 480p(1)')
         #    res=1
-        clrs.m_aviso('tomando resolucion 480p(1)')
-        res=1
         #return url_real
-        return links_res[res]
+        return links_res[self.res]
 
 def get_animeyt_scrapper():
     return AnimeytScraper(default_download_path)
 
-def get_animeflv_scrapper():
-    return AnimeflvScraper(default_download_path)
+def get_animeflv_scrapper(res=None):
+    return AnimeflvScraper(default_download_path, res)
