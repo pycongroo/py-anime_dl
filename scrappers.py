@@ -44,7 +44,7 @@ class Scraper():
             self.cache.update({criterio:resultados})
         return resultados
 
-    def descargar(self, serie, desde=None):
+    def descargar(self, serie, desde=None, res=None):
         self.create_if_not_exists(self.dl_path.split('/')[0])
         self.create_if_not_exists(self.dl_path)
         serie_path = self.dl_path + serie['title'] + '/'
@@ -57,14 +57,14 @@ class Scraper():
                 clrs.m_aviso("seleccion no disponible")
             capitulos =  capitulos_totales[desde-1:]
         for capitulo in capitulos:
-            self.descargar_capitulo(capitulo, serie_path)
+            self.descargar_capitulo(capitulo, serie_path, res)
 
-    def descargar_capitulo(self, capitulo, dir_path):
+    def descargar_capitulo(self, capitulo, dir_path, res):
         path_capitulo = dir_path + capitulo['title'] + '.mp4'
         if os.path.exists(path_capitulo):
             clrs.m_aviso("Ya existe %s" % path_capitulo)
         else:
-            cap_dl_link = self.get_download_link_from_url(capitulo['link'])
+            cap_dl_link = self.get_download_link_from_url(capitulo['link'], res)
             try:
                 clrs.m_aviso("using native wget")
                 status = os.system('wget -O "%s" "%s"' % (path_capitulo, cap_dl_link))
@@ -186,7 +186,7 @@ class AnimeytScraper(Scraper):
         return chapter_link
 
     #scrapping de obtencion de links de descarga de capitulo
-    def get_download_link_from_url(self, url_capitulo):
+    def get_download_link_from_url(self, url_capitulo, res):
         c_req = self.sesion.request_get(url_capitulo)
         c_text = Bs(c_req.text, 'lxml')
         download_url_redir = c_text.find(
@@ -288,15 +288,20 @@ class AnimeflvScraper(Scraper):
         return chapter_link
 
     #scrapping de obtencion de links de descarga de capitulo
-    def get_download_link_from_url(self, url_capitulo):
+    def get_download_link_from_url(self, url_capitulo, resolution):
         c_req = self.sesion.request_get(url_capitulo)
         c_text = Bs(c_req.text, 'lxml')
         download_url_redir = c_text.find('iframe').get('src')
         ## ubico enlace generado de descarga
-        download_url = self.get_link_by_link_page(download_url_redir)
+        download_url = self.get_link_by_link_page(download_url_redir, resolution)
         return download_url
 
-    def get_link_by_link_page(self, dl_link):
+    def get_link_by_link_page(self, dl_link, resolution):
+        resol = None
+        if resolution is None:
+            resol = self.res
+        else:
+            resol = resolution
         ##recibe url de player.animeflv
         b_text = Bs(self.sesion.request_get(dl_link).text, 'lxml')
         #url_real = b_text.find('video').find('source').get('src')
@@ -306,11 +311,12 @@ class AnimeflvScraper(Scraper):
         #    print i
         #time.sleep()
         links_res=filter(self.re_link_url_js.match,links_str_list)
-        #if (res>=len(links_res)):
-        #    clrs.m_aviso('resolucion no encontrada, tomando 480p(1)')
-        #    res=1
+        if (resol>=len(links_res)):
+            clrs.m_aviso('resolucion "%i" no encontrada' % resol)
+            clrs.m_aviso('tomando resolucion "%i"' % (len(links_res)-1))
+            resol = -1
         #return url_real
-        return links_res[self.res]
+        return links_res[resol]
 
 def get_animeyt_scrapper():
     return AnimeytScraper(default_download_path)
