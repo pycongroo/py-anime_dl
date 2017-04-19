@@ -90,3 +90,4 @@ ENV/
 
 # Extras
 descargas/*
+.idea/*
