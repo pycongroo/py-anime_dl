@@ -31,7 +31,7 @@ class Scraper():
         if (hreq.status_code==200):
             clrs.m_aviso('Completado')
         else:
-            m_aviso('ocurrio un problema')
+            clrs.m_aviso('ocurrio un problema')
 
     def buscar_en_cache(self, criterio):
         return self.cache.get(criterio)
