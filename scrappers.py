@@ -45,9 +45,12 @@ class Scraper():
         return resultados
 
     def descargar(self, serie, desde=None, res=None):
-        self.create_if_not_exists(self.dl_path.split('/')[0])
+        pre_path = ''
+        for cad in self.dl_path.split('/')[:-2]:
+            pre_path += (cad + '/')
+        self.create_if_not_exists(pre_path)
         self.create_if_not_exists(self.dl_path)
-        serie_path = self.dl_path + serie['title'] + '/'
+        serie_path = self.dl_path + serie['title'].replace('/','-') + '/'
         self.create_if_not_exists(serie_path)
         capitulos_totales = self.get_capitulos_from_url(serie['link'])
         if (desde is None):
@@ -60,7 +63,7 @@ class Scraper():
             self.descargar_capitulo(capitulo, serie_path, res)
 
     def descargar_capitulo(self, capitulo, dir_path, res):
-        path_capitulo = dir_path + capitulo['title'] + '.mp4'
+        path_capitulo = dir_path + capitulo['title'].replace('/','-') + '.mp4'
         if os.path.exists(path_capitulo):
             clrs.m_aviso("Ya existe %s" % path_capitulo)
         else:
@@ -196,16 +199,27 @@ class AnimeytScraper(Scraper):
         return download_url
 
     def get_link_by_link_page(self, dl_link):
-        b_text = Bs(self.sesion.request_get(dl_link).text, 'lxml')
-        script_tag = b_text.findAll('script')[1]
-        text_url = script_tag.string.split('\n')[8]
-        url_real = self.re_link_js.match(text_url).groups()[0]
-        return url_real
+        page_text = self.sesion.request_get(dl_link).text
+        bs_link = Bs(page_text, 'lxml')
+        script_tags = bs_link.findAll('script')
+        # ubico el tag de script que genera los botones
+        link_tag = filter(lambda x:x.getText().find('jQuery')>=0, script_tags)[0]
+        dw_urls = re.findAll('url[\d]* = "(.*)"', link_tag.getText())
+        # retorna todas las url obtenidas
+        return dw_urls
+        # return re.findall('function crearBoton.*?url.*?=.*?"(.*?)"', page_text.replace('\n',''))[0]
+        # b_text = Bs(self.sesion.request_get(dl_link).text, 'lxml')
+        # script_tag = b_text.findAll('script')[1]
+        # text_url = script_tag.string.split('\n')[8]
+        # url_real = self.re_link_js.match(text_url).groups()[0]
+        # return url_real
 
 class AnimeflvScraper(Scraper):
     base_link = 'http://www.animeflv.me/'
     scraper_name = 'animeflv-me'
     re_link_url_js = re.compile('https://\S*')
+    pre_stream_link = 'https://openload.co/stream/'
+    post_stream_link = '?mime=true'
     res=None
 
     def __init__(self, base_path, res=None):
@@ -254,7 +268,7 @@ class AnimeflvScraper(Scraper):
         return d_anime
 
     def get_title(self, anime_div):
-        anime_title = anime_div.find('a').getText().split('\r')[0].replace('\n', ' ')
+        anime_title = anime_div.find('a').getText().split('\r')[0].replace('\n', ' ').replace('/','-')
         return anime_title
 
     def get_link(self, anime_div):
@@ -279,7 +293,7 @@ class AnimeflvScraper(Scraper):
 
 
     def get_chapter_title(self, chapter_div):
-        chapter_title = chapter_div.find('a').getText().split('\r')[0].replace('\n', ' ').replace('   ','')
+        chapter_title = chapter_div.find('a').getText().split('\r')[0].replace('\n', ' ').replace('   ','').replace('/','-')
         return chapter_title
 
 
@@ -293,30 +307,27 @@ class AnimeflvScraper(Scraper):
         c_text = Bs(c_req.text, 'lxml')
         download_url_redir = c_text.find('iframe').get('src')
         ## ubico enlace generado de descarga
-        download_url = self.get_link_by_link_page(download_url_redir, resolution)
+        download_url = self.get_link_by_link_page(download_url_redir)
+        #ubico stream de openload
+        #oload_url = c_text.find('span',{'id':'streamurl'})
+        #download_url = '%s%s%s'%(self.pre_stream_link,oload_url,self.post_stream_link)
         return download_url
 
-    def get_link_by_link_page(self, dl_link, resolution):
-        resol = None
-        if resolution is None:
-            resol = self.res
-        else:
-            resol = resolution
-        ##recibe url de player.animeflv
-        b_text = Bs(self.sesion.request_get(dl_link).text, 'lxml')
-        #url_real = b_text.find('video').find('source').get('src')
-        links_str_list=b_text.findAll('script')[7].getText().split('[')[1].split(']')[0].split('"')
-        #es una lista con los enlaces y basura, debe ser filtrado
-        #for i in links_res:
-        #    print i
-        #time.sleep()
-        links_res=filter(self.re_link_url_js.match,links_str_list)
-        if (resol>=len(links_res)):
-            clrs.m_aviso('resolucion "%i" no encontrada' % resol)
-            clrs.m_aviso('tomando resolucion "%i"' % (len(links_res)-1))
-            resol = -1
-        #return url_real
-        return links_res[resol]
+    def get_link_by_link_page(self, dl_link):
+        r_rq=self.sesion.request_get(dl_link)
+        rpars1 = Bs(r_rq.text, 'lxml')
+        o_load_page=rpars1.find('iframe').get('src')
+        print o_load_page
+        id_oload = o_load_page.split('/')[-2]
+        r_oload = self.sesion.request_get(o_load_page)
+        o_load_p=Bs(r_oload.text, 'lxml')
+        oload_url = o_load_p.findAll('script')[5].getText().split('/')[-1].split('"')[0][:-1]
+        print 'CODE:'
+        print oload_url
+        download_url = '%s%s~%s%s'%(self.pre_stream_link, id_oload, oload_url, self.post_stream_link)
+        print 'URL:'
+        print download_url
+        return download_url
 
 def get_animeyt_scrapper():
     return AnimeytScraper(default_download_path)
